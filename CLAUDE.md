@@ -68,27 +68,32 @@ Para eso debe demostrar, en este orden de prioridad:
 
 ```
 /
-├── app/
-│   ├── page.tsx                 # Landing con hero + chatbot embebido + CTA
-│   ├── api/
-│   │   ├── chat/route.ts        # Endpoint de chat con streaming
-│   │   ├── capture-email/route.ts # Endpoint para capturar email (acción custom)
-│   │   └── ingest/route.ts      # Script de ingesta (protegido, uso interno)
-│   └── layout.tsx
-├── components/
-│   ├── ChatWidget.tsx           # Widget principal del chatbot
-│   ├── Message.tsx              # Render de mensaje individual con citas
-│   ├── SuggestedQuestions.tsx   # Chips con preguntas sugeridas
-│   └── EmailCapture.tsx         # Componente que aparece en acción custom
-├── lib/
-│   ├── anthropic.ts             # Cliente de Claude
-│   ├── embeddings.ts            # Generación de embeddings con OpenAI
-│   ├── supabase.ts              # Cliente de Supabase
-│   ├── rag.ts                   # Lógica de retrieval (similarity search)
-│   ├── rate-limit.ts            # Rate limiting por IP
-│   └── prompts.ts               # System prompts centralizados
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                 # Landing con hero + chatbot embebido + CTA
+│   │   ├── layout.tsx
+│   │   └── api/
+│   │       ├── chat/route.ts        # Endpoint de chat con streaming
+│   │       ├── capture-email/route.ts # Endpoint para capturar email (acción custom)
+│   │       └── ingest/route.ts      # Script de ingesta (protegido, uso interno)
+│   ├── components/
+│   │   ├── chat/
+│   │   │   ├── ChatWidget.tsx       # Widget principal del chatbot
+│   │   │   ├── Message.tsx          # Render de mensaje individual con citas
+│   │   │   ├── SuggestedQuestions.tsx # Chips con preguntas sugeridas
+│   │   │   └── EmailCapture.tsx     # Componente que aparece en acción custom
+│   │   └── ui/                      # Componentes de shadcn/ui
+│   └── lib/
+│       ├── anthropic.ts             # Cliente de Claude
+│       ├── embeddings.ts            # Generación de embeddings con OpenAI
+│       ├── supabase.ts              # Cliente de Supabase
+│       ├── rag.ts                   # Lógica de retrieval (similarity search)
+│       ├── rate-limit.ts            # Rate limiting por IP
+│       └── prompts.ts               # System prompts centralizados
 ├── scripts/
 │   └── ingest.ts                # Script standalone de ingesta inicial
+├── supabase/
+│   └── schema.sql               # Schema SQL para ejecutar en Supabase SQL Editor
 └── CLAUDE.md
 ```
 
