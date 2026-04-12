@@ -24,6 +24,9 @@ create index if not exists documents_embedding_ivfflat
 
 create index if not exists documents_source_url_idx on documents (source_url);
 
+create unique index if not exists documents_content_hash_uniq
+  on documents (content_hash);
+
 -- ---------------------------------------------------------------------------
 -- conversations: full chat log for analysis
 -- ---------------------------------------------------------------------------
