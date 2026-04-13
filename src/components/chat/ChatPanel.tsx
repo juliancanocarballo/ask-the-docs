@@ -13,6 +13,7 @@ type Props = {
   onSend: () => void;
   onNewChat: () => void;
   onClose: () => void;
+  onRetry?: () => void;
 };
 
 export function ChatPanel({
@@ -23,6 +24,7 @@ export function ChatPanel({
   onSend,
   onNewChat,
   onClose,
+  onRetry,
 }: Props) {
   return (
     <div
@@ -37,7 +39,7 @@ export function ChatPanel({
       }}
     >
       <ChatHeader onNewChat={onNewChat} onClose={onClose} />
-      <MessageList messages={messages} />
+      <MessageList messages={messages} onRetry={onRetry} />
       <MessageInput
         value={inputValue}
         onChange={onInputChange}

@@ -4,21 +4,51 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatButton } from "./ChatButton";
 import { ChatPanel } from "./ChatPanel";
+import { hasEmailCaptureMarker } from "./markers";
 import type { ChatMessage } from "./Message";
-import { mockStreamResponse } from "./mockStream";
+import {
+  clearChat,
+  loadConversationId,
+  loadMessages,
+  saveConversationId,
+  saveMessages,
+} from "./storage";
+import { streamChat } from "./streamChat";
 
 function makeId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+const NETWORK_ERROR_MSG = "Network error. Tap retry.";
 
 export function ChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [showEmailCapture, setShowEmailCapture] = useState(false);
 
   const fabRef = useRef<HTMLButtonElement>(null);
-  const cancelStreamRef = useRef<(() => void) | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const hasHydratedRef = useRef(false);
+
+  // Hydrate from localStorage once on mount.
+  useEffect(() => {
+    const stored = loadMessages();
+    const storedId = loadConversationId();
+    // Any stored message flagged as streaming at load time is stale — clear the flag.
+    const cleaned = stored.map((m) => ({ ...m, isStreaming: false }));
+    if (cleaned.length > 0) setMessages(cleaned);
+    if (storedId) setConversationId(storedId);
+    hasHydratedRef.current = true;
+  }, []);
+
+  // Persist messages whenever they change (after hydration).
+  useEffect(() => {
+    if (!hasHydratedRef.current) return;
+    saveMessages(messages);
+  }, [messages]);
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -39,16 +69,72 @@ export function ChatWidget() {
 
   useEffect(() => {
     return () => {
-      cancelStreamRef.current?.();
+      abortControllerRef.current?.abort();
     };
   }, []);
 
+  const startStream = useCallback(
+    (historyForApi: ChatMessage[], assistantId: string) => {
+      setIsStreaming(true);
+      const payload = historyForApi.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      abortControllerRef.current = streamChat(payload, conversationId, {
+        onConversationId: (id) => {
+          setConversationId(id);
+          saveConversationId(id);
+        },
+        onChunk: (chunk) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, content: m.content + chunk }
+                : m
+            )
+          );
+        },
+        onDone: (fullText) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, isStreaming: false } : m
+            )
+          );
+          setIsStreaming(false);
+          abortControllerRef.current = null;
+          if (hasEmailCaptureMarker(fullText)) setShowEmailCapture(true);
+        },
+        onError: (err) => {
+          console.error("[chat] stream error:", err);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content: NETWORK_ERROR_MSG,
+                    isStreaming: false,
+                    isError: true,
+                  }
+                : m
+            )
+          );
+          setIsStreaming(false);
+          abortControllerRef.current = null;
+        },
+      });
+    },
+    [conversationId]
+  );
+
   function handleNewChat() {
-    cancelStreamRef.current?.();
-    cancelStreamRef.current = null;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setMessages([]);
     setInputValue("");
     setIsStreaming(false);
+    setConversationId(null);
+    setShowEmailCapture(false);
+    clearChat();
   }
 
   function handleSend() {
@@ -68,28 +154,41 @@ export function ChatWidget() {
       isStreaming: true,
     };
 
-    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    const historyForApi = [...messages, userMsg];
+    setMessages([...historyForApi, assistantMsg]);
     setInputValue("");
-    setIsStreaming(true);
 
-    cancelStreamRef.current = mockStreamResponse(
-      (chunk) => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, content: m.content + chunk } : m
-          )
-        );
-      },
-      () => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, isStreaming: false } : m
-          )
-        );
-        setIsStreaming(false);
-        cancelStreamRef.current = null;
+    startStream(historyForApi, assistantId);
+  }
+
+  function handleRetry() {
+    if (isStreaming) return;
+    // Find the last errored assistant message and the user message before it.
+    const lastAssistantIdx = messages.length - 1;
+    const last = messages[lastAssistantIdx];
+    if (!last || !last.isError || last.role !== "assistant") return;
+
+    // Scan backward for the most recent user message.
+    let userIdx = -1;
+    for (let i = lastAssistantIdx - 1; i >= 0; i--) {
+      if (messages[i].role === "user") {
+        userIdx = i;
+        break;
       }
-    );
+    }
+    if (userIdx === -1) return;
+
+    // Drop the errored assistant; keep everything up to and including the user msg.
+    const trimmed = messages.slice(0, lastAssistantIdx);
+    const newAssistantId = makeId();
+    const assistantMsg: ChatMessage = {
+      id: newAssistantId,
+      role: "assistant",
+      content: "",
+      isStreaming: true,
+    };
+    setMessages([...trimmed, assistantMsg]);
+    startStream(trimmed, newAssistantId);
   }
 
   return (
@@ -104,6 +203,7 @@ export function ChatWidget() {
           onSend={handleSend}
           onNewChat={handleNewChat}
           onClose={close}
+          onRetry={handleRetry}
         />
       )}
     </>

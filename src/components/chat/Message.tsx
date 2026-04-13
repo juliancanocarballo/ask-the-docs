@@ -1,13 +1,17 @@
 "use client";
 
+import { RotateCcw } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+import { stripMarkers } from "./markers";
 
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
+  isError?: boolean;
 };
 
 const markdownComponents: Components = {
@@ -60,10 +64,34 @@ const markdownComponents: Components = {
 
 type Props = {
   message: ChatMessage;
+  onRetry?: () => void;
 };
 
-export function Message({ message }: Props) {
+export function Message({ message, onRetry }: Props) {
   const isUser = message.role === "user";
+
+  if (message.isError) {
+    return (
+      <div className="flex w-full justify-start">
+        <div className="max-w-[90%] rounded-2xl rounded-tl-sm border border-destructive/50 bg-destructive/5 px-3 py-2 text-sm">
+          <p className="text-destructive">{message.content}</p>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-2 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Retry
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const content = stripMarkers(message.content);
+
   return (
     <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
       <div
@@ -75,7 +103,7 @@ export function Message({ message }: Props) {
       >
         <div className="break-words">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {message.content}
+            {content}
           </ReactMarkdown>
           {message.isStreaming && (
             <span

@@ -6,9 +6,10 @@ import { Message, type ChatMessage } from "./Message";
 
 type Props = {
   messages: ChatMessage[];
+  onRetry?: () => void;
 };
 
-export function MessageList({ messages }: Props) {
+export function MessageList({ messages, onRetry }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldStickRef = useRef(true);
 
@@ -44,15 +45,20 @@ export function MessageList({ messages }: Props) {
     );
   }
 
+  const last = messages[messages.length - 1];
+  const retryEnabled = Boolean(onRetry && last?.isError);
+
   return (
     <div
       ref={containerRef}
       onScroll={handleScroll}
       className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4"
     >
-      {messages.map((m) => (
-        <Message key={m.id} message={m} />
-      ))}
+      {messages.map((m, i) => {
+        const isLast = i === messages.length - 1;
+        const retryForThis = retryEnabled && isLast ? onRetry : undefined;
+        return <Message key={m.id} message={m} onRetry={retryForThis} />;
+      })}
     </div>
   );
 }
