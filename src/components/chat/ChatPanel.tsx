@@ -14,6 +14,13 @@ type Props = {
   onNewChat: () => void;
   onClose: () => void;
   onRetry?: () => void;
+  showEmailCaptureForm: boolean;
+  onSubmitLead: () => void;
+  onDismissCapture: () => void;
+  conversationId: string | null;
+  lastAssistantContent: string;
+  showSuggestedQuestions: boolean;
+  onSelectSuggestion: (q: string) => void;
 };
 
 export function ChatPanel({
@@ -25,6 +32,13 @@ export function ChatPanel({
   onNewChat,
   onClose,
   onRetry,
+  showEmailCaptureForm,
+  onSubmitLead,
+  onDismissCapture,
+  conversationId,
+  lastAssistantContent,
+  showSuggestedQuestions,
+  onSelectSuggestion,
 }: Props) {
   return (
     <div
@@ -39,7 +53,17 @@ export function ChatPanel({
       }}
     >
       <ChatHeader onNewChat={onNewChat} onClose={onClose} />
-      <MessageList messages={messages} onRetry={onRetry} />
+      <MessageList
+        messages={messages}
+        onRetry={onRetry}
+        showEmailCaptureForm={showEmailCaptureForm}
+        onSubmitLead={onSubmitLead}
+        onDismissCapture={onDismissCapture}
+        conversationId={conversationId}
+        lastAssistantContent={lastAssistantContent}
+        showSuggestedQuestions={showSuggestedQuestions}
+        onSelectSuggestion={onSelectSuggestion}
+      />
       <MessageInput
         value={inputValue}
         onChange={onInputChange}

@@ -1,5 +1,6 @@
 const STORAGE_KEY_MESSAGES = "ask-the-docs:messages";
 const STORAGE_KEY_CONV_ID = "ask-the-docs:conversationId";
+const STORAGE_KEY_LEAD_SUBMITTED = "ask-the-docs:leadSubmitted";
 const MAX_MESSAGES = 50;
 
 export type StoredMessage = {
@@ -50,11 +51,32 @@ export function saveConversationId(id: string | null): void {
   }
 }
 
+export function loadLeadSubmitted(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_LEAD_SUBMITTED);
+    return raw === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function saveLeadSubmitted(v: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (v) localStorage.setItem(STORAGE_KEY_LEAD_SUBMITTED, "true");
+    else localStorage.removeItem(STORAGE_KEY_LEAD_SUBMITTED);
+  } catch {
+    // ignore
+  }
+}
+
 export function clearChat(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(STORAGE_KEY_MESSAGES);
     localStorage.removeItem(STORAGE_KEY_CONV_ID);
+    localStorage.removeItem(STORAGE_KEY_LEAD_SUBMITTED);
   } catch {
     // ignore
   }

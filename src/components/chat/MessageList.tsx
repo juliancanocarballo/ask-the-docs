@@ -2,14 +2,33 @@
 
 import { useEffect, useRef } from "react";
 
+import { EmailCapture } from "./EmailCapture";
 import { Message, type ChatMessage } from "./Message";
+import { SuggestedQuestions } from "./SuggestedQuestions";
 
 type Props = {
   messages: ChatMessage[];
   onRetry?: () => void;
+  showEmailCaptureForm: boolean;
+  onSubmitLead: () => void;
+  onDismissCapture: () => void;
+  conversationId: string | null;
+  lastAssistantContent: string;
+  showSuggestedQuestions: boolean;
+  onSelectSuggestion: (q: string) => void;
 };
 
-export function MessageList({ messages, onRetry }: Props) {
+export function MessageList({
+  messages,
+  onRetry,
+  showEmailCaptureForm,
+  onSubmitLead,
+  onDismissCapture,
+  conversationId,
+  lastAssistantContent,
+  showSuggestedQuestions,
+  onSelectSuggestion,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldStickRef = useRef(true);
 
@@ -19,7 +38,7 @@ export function MessageList({ messages, onRetry }: Props) {
     if (shouldStickRef.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, showEmailCaptureForm]);
 
   function handleScroll() {
     const el = containerRef.current;
@@ -41,6 +60,9 @@ export function MessageList({ messages, onRetry }: Props) {
         <p className="mt-1 text-xs text-muted-foreground">
           Database, Auth, Storage, Edge Functions, Realtime.
         </p>
+        {showSuggestedQuestions && (
+          <SuggestedQuestions onSelect={onSelectSuggestion} />
+        )}
       </div>
     );
   }
@@ -59,6 +81,14 @@ export function MessageList({ messages, onRetry }: Props) {
         const retryForThis = retryEnabled && isLast ? onRetry : undefined;
         return <Message key={m.id} message={m} onRetry={retryForThis} />;
       })}
+      {showEmailCaptureForm && (
+        <EmailCapture
+          conversationId={conversationId}
+          lastAssistantContent={lastAssistantContent}
+          onSubmitted={onSubmitLead}
+          onDismiss={onDismissCapture}
+        />
+      )}
     </div>
   );
 }

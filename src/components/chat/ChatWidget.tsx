@@ -4,13 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChatButton } from "./ChatButton";
 import { ChatPanel } from "./ChatPanel";
-import { hasEmailCaptureMarker } from "./markers";
+import { hasEmailCaptureMarker, stripMarkers } from "./markers";
 import type { ChatMessage } from "./Message";
 import {
   clearChat,
   loadConversationId,
+  loadLeadSubmitted,
   loadMessages,
   saveConversationId,
+  saveLeadSubmitted,
   saveMessages,
 } from "./storage";
 import { streamChat } from "./streamChat";
@@ -28,23 +30,23 @@ export function ChatWidget() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [showEmailCapture, setShowEmailCapture] = useState(false);
+  const [leadSubmitted, setLeadSubmitted] = useState(false);
 
   const fabRef = useRef<HTMLButtonElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasHydratedRef = useRef(false);
 
-  // Hydrate from localStorage once on mount.
   useEffect(() => {
     const stored = loadMessages();
     const storedId = loadConversationId();
-    // Any stored message flagged as streaming at load time is stale — clear the flag.
+    const storedLead = loadLeadSubmitted();
     const cleaned = stored.map((m) => ({ ...m, isStreaming: false }));
     if (cleaned.length > 0) setMessages(cleaned);
     if (storedId) setConversationId(storedId);
+    if (storedLead) setLeadSubmitted(true);
     hasHydratedRef.current = true;
   }, []);
 
-  // Persist messages whenever they change (after hydration).
   useEffect(() => {
     if (!hasHydratedRef.current) return;
     saveMessages(messages);
@@ -134,11 +136,13 @@ export function ChatWidget() {
     setIsStreaming(false);
     setConversationId(null);
     setShowEmailCapture(false);
+    setLeadSubmitted(false);
+    saveLeadSubmitted(false);
     clearChat();
   }
 
-  function handleSend() {
-    const text = inputValue.trim();
+  function handleSend(textOverride?: string) {
+    const text = (textOverride ?? inputValue).trim();
     if (!text || isStreaming) return;
 
     const userMsg: ChatMessage = {
@@ -156,19 +160,17 @@ export function ChatWidget() {
 
     const historyForApi = [...messages, userMsg];
     setMessages([...historyForApi, assistantMsg]);
-    setInputValue("");
+    if (!textOverride) setInputValue("");
 
     startStream(historyForApi, assistantId);
   }
 
   function handleRetry() {
     if (isStreaming) return;
-    // Find the last errored assistant message and the user message before it.
     const lastAssistantIdx = messages.length - 1;
     const last = messages[lastAssistantIdx];
     if (!last || !last.isError || last.role !== "assistant") return;
 
-    // Scan backward for the most recent user message.
     let userIdx = -1;
     for (let i = lastAssistantIdx - 1; i >= 0; i--) {
       if (messages[i].role === "user") {
@@ -178,7 +180,6 @@ export function ChatWidget() {
     }
     if (userIdx === -1) return;
 
-    // Drop the errored assistant; keep everything up to and including the user msg.
     const trimmed = messages.slice(0, lastAssistantIdx);
     const newAssistantId = makeId();
     const assistantMsg: ChatMessage = {
@@ -191,6 +192,28 @@ export function ChatWidget() {
     startStream(trimmed, newAssistantId);
   }
 
+  function handleSubmitLead() {
+    setLeadSubmitted(true);
+    saveLeadSubmitted(true);
+  }
+
+  function handleDismissCapture() {
+    setShowEmailCapture(false);
+  }
+
+  const last = messages[messages.length - 1];
+  const lastIsAssistant = last?.role === "assistant" && !last.isError;
+  const lastAssistantContent = lastIsAssistant ? stripMarkers(last.content) : "";
+
+  const showEmailCaptureForm =
+    showEmailCapture &&
+    !leadSubmitted &&
+    !isStreaming &&
+    messages.length > 0 &&
+    lastIsAssistant;
+
+  const showSuggestedQuestions = messages.length === 0 && !isStreaming;
+
   return (
     <>
       {!isOpen && <ChatButton ref={fabRef} onClick={() => setIsOpen(true)} />}
@@ -200,10 +223,17 @@ export function ChatWidget() {
           inputValue={inputValue}
           isStreaming={isStreaming}
           onInputChange={setInputValue}
-          onSend={handleSend}
+          onSend={() => handleSend()}
           onNewChat={handleNewChat}
           onClose={close}
           onRetry={handleRetry}
+          showEmailCaptureForm={showEmailCaptureForm}
+          onSubmitLead={handleSubmitLead}
+          onDismissCapture={handleDismissCapture}
+          conversationId={conversationId}
+          lastAssistantContent={lastAssistantContent}
+          showSuggestedQuestions={showSuggestedQuestions}
+          onSelectSuggestion={(q) => handleSend(q)}
         />
       )}
     </>
