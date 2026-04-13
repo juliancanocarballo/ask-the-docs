@@ -407,3 +407,8 @@ mejora el matching significativamente.
 
 ### Day 4 lesson
 Prompt iteration round 2 added a "NO-INFO + marker" path to capture ambiguous commercial leads. This caused Claude to default to NO-INFO under any uncertainty. Round 3 tried to fix with more rules — failed. Round 4 reverted the path entirely. Lesson: when the model prefers a shortcut, remove the shortcut; do not instruct against it.
+
+### Day 6 accepted misses
+- Multi-turn language drift: an EN message following several ES turns can inherit the previous language. This is LLM behavior on conversational history, not a widget issue. Accepted.
+- Code blocks render with horizontal scroll (overflow-x-auto). Legacy from day 5, conscious decision — preserves formatting on narrow mobile widths.
+- Markdown headers (`##`, `###`) render as plain text: no styling in the `react-markdown` custom components map. Low-impact; answers rarely use headers. Improvable on day 8 if time allows.
