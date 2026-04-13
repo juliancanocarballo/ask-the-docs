@@ -114,12 +114,15 @@ export function ChatWidget() {
         },
         onError: (err) => {
           console.error("[chat] stream error:", err);
+          const errorContent = err.message.startsWith("Rate limit")
+            ? err.message
+            : NETWORK_ERROR_MSG;
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId
                 ? {
                     ...m,
-                    content: NETWORK_ERROR_MSG,
+                    content: errorContent,
                     isStreaming: false,
                     isError: true,
                   }

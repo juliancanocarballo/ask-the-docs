@@ -10,11 +10,13 @@ import {
   detectLanguage,
   getNoInfoMessage,
 } from "@/lib/prompts";
+import { chatRatelimit, getClientIp } from "@/lib/ratelimit";
 import { retrieveChunks, type RetrievedChunk } from "@/lib/retrieval";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 const MAX_TOKENS = 1024;
 const TEMPERATURE = 0.3;
@@ -61,6 +63,23 @@ function toSourcePayload(chunks: RetrievedChunk[]): SourcePayload[] {
 
 export async function POST(req: NextRequest): Promise<Response> {
   const startedAt = Date.now();
+
+  const clientIp = getClientIp(req.headers);
+  const rl = await chatRatelimit.limit(clientIp);
+  if (!rl.success) {
+    return new Response(
+      JSON.stringify({ error: "Too many requests. Please try again later." }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "X-RateLimit-Limit": String(rl.limit),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": String(rl.reset),
+        },
+      }
+    );
+  }
 
   let body: ChatRequestBody;
   try {

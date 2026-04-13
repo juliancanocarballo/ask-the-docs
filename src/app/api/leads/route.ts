@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 
+import { getClientIp, leadsRatelimit } from "@/lib/ratelimit";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -18,6 +19,23 @@ type LeadRequestBody = {
 };
 
 export async function POST(req: NextRequest): Promise<Response> {
+  const clientIp = getClientIp(req.headers);
+  const rl = await leadsRatelimit.limit(clientIp);
+  if (!rl.success) {
+    return new Response(
+      JSON.stringify({ error: "Too many submissions. Please try again later." }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "X-RateLimit-Limit": String(rl.limit),
+          "X-RateLimit-Remaining": String(rl.remaining),
+          "X-RateLimit-Reset": String(rl.reset),
+        },
+      }
+    );
+  }
+
   let body: LeadRequestBody;
   try {
     body = (await req.json()) as LeadRequestBody;

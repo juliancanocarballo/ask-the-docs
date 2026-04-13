@@ -52,6 +52,12 @@ export function EmailCapture({
         }),
       });
 
+      if (res.status === 429) {
+        setStatus("error");
+        setErrorMsg("Too many submissions. Please try again later.");
+        return;
+      }
+
       if (!res.ok) {
         setStatus("error");
         setErrorMsg("Something went wrong. Please try again.");

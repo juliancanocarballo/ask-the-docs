@@ -34,6 +34,14 @@ export function streamChat(
         signal: controller.signal,
       });
 
+      if (res.status === 429) {
+        callbacks.onError(
+          new Error(
+            "Rate limit exceeded. Please wait a few minutes and try again."
+          )
+        );
+        return;
+      }
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
