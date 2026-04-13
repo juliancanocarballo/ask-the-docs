@@ -399,3 +399,11 @@ mejora el matching significativamente.
 - Normalizar embeddings a norma unitaria antes de almacenar (pgvector cosine ya asume esto, pero verificar).
 - Query expansion server-side: antes de embedir, añadir contexto del dominio ("Supabase") a la query del usuario.
 - Hybrid retrieval: combinar vector search con BM25 full-text sobre `content` para rescatar matches léxicos que el embedding pierde.
+
+### Day 4 accepted misses
+- Q9 "Should I use Supabase or Firebase for my project?" returns NO-INFO. Docs lack head-to-head comparison; gate working as intended. Not a bug.
+- Q3 RLS ES sometimes cites only 1 source when answer synthesizes multiple. Subcitation behavior of Claude Haiku, low-impact. Accepted.
+- Pure contact requests without technical content (e.g., "necesito ayuda con mi proyecto, ¿alguien puede contactarme?") return NO-INFO without marker. By design — gate must pass for marker to emit. Lead capture for these cases handled by persistent "Contact team" button in widget (day 7).
+
+### Day 4 lesson
+Prompt iteration round 2 added a "NO-INFO + marker" path to capture ambiguous commercial leads. This caused Claude to default to NO-INFO under any uncertainty. Round 3 tried to fix with more rules — failed. Round 4 reverted the path entirely. Lesson: when the model prefers a shortcut, remove the shortcut; do not instruct against it.
