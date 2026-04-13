@@ -62,7 +62,18 @@ create index if not exists leads_email_idx on leads (email);
 -- ---------------------------------------------------------------------------
 -- match_documents: cosine similarity search used by /api/chat
 -- ---------------------------------------------------------------------------
-create or replace function match_documents(
+-- Drop any prior signature so re-running the schema always lands on the
+-- canonical 3-arg version (CREATE OR REPLACE fails silently if args differ).
+drop function if exists match_documents(vector, float);
+drop function if exists match_documents(vector, double precision);
+drop function if exists match_documents(vector(1536), float);
+drop function if exists match_documents(vector(1536), double precision);
+drop function if exists match_documents(vector, float, int);
+drop function if exists match_documents(vector, double precision, integer);
+drop function if exists match_documents(vector(1536), float, int);
+drop function if exists match_documents(vector(1536), double precision, integer);
+
+create function match_documents(
   query_embedding vector(1536),
   match_threshold float default 0.7,
   match_count     int   default 5

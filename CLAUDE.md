@@ -226,8 +226,8 @@ Las 3 preguntas iniciales están diseñadas para demostrar las 3 capacidades cla
 **Preguntas finales para el demo de Supabase:**
 
 1. **Técnica específica (muestra precisión con citas):**
-   `"How do I set up Row Level Security for a multi-tenant app?"`
-   - Demuestra: respuesta técnica correcta + código + cita a docs de RLS.
+   `"What's the difference between anon key and service role key?"`
+   - Demuestra: respuesta técnica correcta + cita a docs de Auth/API. Reemplaza la pregunta de RLS por un problema de embeddings outlier (ver sección "Known Issues").
 
 2. **Fuera de contexto (muestra manejo de 'no sé'):**
    `"What's the best pricing strategy for my SaaS?"`
@@ -238,10 +238,10 @@ Las 3 preguntas iniciales están diseñadas para demostrar las 3 capacidades cla
    - Demuestra: bot responde con info técnica útil Y activa el componente de captura de email ofreciendo contacto con el equipo.
 
 **Preguntas alternativas probadas (rotar para A/B testing):**
+- "How do I sign in with Google?"
 - "How do I migrate from Firebase to Supabase?"
 - "Can I use Supabase with Drizzle ORM?"
 - "How do Edge Functions handle secrets?"
-- "What's the difference between anon key and service role key?"
 
 ---
 
@@ -380,3 +380,22 @@ El demo está listo para vender cuando:
 - Tests: solo si hay tiempo en día 10. No bloquear entrega por tests.
 - Si algo toma más de lo estimado en el cronograma, simplificar scope, no extender fechas.
 - Cuando haya decisión entre "feature extra" vs "launch el día 10", siempre launch.
+
+---
+
+## 17. Known Issues
+
+### Embeddings outlier con queries cortas y técnicas
+
+OpenAI `text-embedding-3-small` ocasionalmente genera embeddings outlier para queries cortas y técnicas (ej: `"How do I set up Row Level Security?"`) que no matchean con ningún chunk almacenado, incluso con threshold muy bajo (0.05). El caso se observó en Día 3 durante las pruebas de `test-chat.ts`: la misma pregunta reformulada con más contexto devuelve matches normales.
+
+**Workaround actual:** reformular la query con más contexto técnico, por ejemplo:
+> `"How do I configure Row Level Security policies in Postgres for my Supabase database?"`
+
+mejora el matching significativamente.
+
+**A investigar en el futuro:**
+- Probar `text-embedding-3-large` (3072 dims) — mayor capacidad semántica.
+- Normalizar embeddings a norma unitaria antes de almacenar (pgvector cosine ya asume esto, pero verificar).
+- Query expansion server-side: antes de embedir, añadir contexto del dominio ("Supabase") a la query del usuario.
+- Hybrid retrieval: combinar vector search con BM25 full-text sobre `content` para rescatar matches léxicos que el embedding pierde.
