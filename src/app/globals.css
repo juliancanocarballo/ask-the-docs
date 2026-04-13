@@ -128,3 +128,13 @@
     @apply font-sans;
   }
 }
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.animate-blink {
+  animation: blink 1s steps(2) infinite;
+}
