@@ -52,6 +52,12 @@ export function ChatWidget() {
     saveMessages(messages);
   }, [messages]);
 
+  useEffect(() => {
+    const handler = () => setIsOpen(true);
+    window.addEventListener("open-chat-widget", handler);
+    return () => window.removeEventListener("open-chat-widget", handler);
+  }, []);
+
   const close = useCallback(() => {
     setIsOpen(false);
     requestAnimationFrame(() => fabRef.current?.focus());
