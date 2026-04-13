@@ -32,43 +32,145 @@ function loadEnvLocal(): void {
 
 const BASE_URL = process.env.CHAT_BASE_URL ?? "http://localhost:3000";
 
+type Category = "technical" | "out-of-context" | "commercial" | "ambiguous";
+
+type Expect = {
+  contains?: string[];
+  notContains?: string[];
+  equalsOneOf?: string[];
+  matches?: RegExp[];
+  anyOf?: Array<{ contains?: string[]; equalsOneOf?: string[] }>;
+};
+
 type TestCase = {
   label: string;
+  category: Category;
+  lang: "en" | "es";
   query: string;
-  expect: {
-    contains?: string[];
-    equalsOneOf?: string[];
-  };
+  expect: Expect;
 };
 
 const cases: TestCase[] = [
   {
-    label: "Technical (expect citations)",
-    query: "How do I set up Row Level Security?",
+    label: "Technical EN — anon vs service role key",
+    category: "technical",
+    lang: "en",
+    query:
+      "What's the difference between anon key and service role key?",
+    expect: {
+      contains: ["[Source:"],
+      notContains: [SHOW_EMAIL_CAPTURE_MARKER, "[Fuente:"],
+    },
+  },
+  {
+    label: "Technical EN — edge function secrets",
+    category: "technical",
+    lang: "en",
+    query: "How do Edge Functions handle secrets?",
+    expect: {
+      contains: ["[Source:"],
+      notContains: [SHOW_EMAIL_CAPTURE_MARKER, "[Fuente:"],
+    },
+  },
+  {
+    label: "Technical ES — RLS policies (expanded to avoid embedding outlier)",
+    category: "technical",
+    lang: "es",
+    query:
+      "¿Cómo configuro políticas de Row Level Security en Postgres para mi base de datos Supabase?",
     expect: {
       contains: ["[Fuente:"],
+      notContains: ["[Source:"],
     },
   },
   {
-    label: "Out-of-context (expect no-info)",
-    query: "What's the best pricing strategy for SaaS?",
+    label: "Technical EN — Google sign-in",
+    category: "technical",
+    lang: "en",
+    query: "How do I sign in with Google using Supabase Auth?",
     expect: {
-      equalsOneOf: [NO_INFO_ES, NO_INFO_EN],
+      contains: ["[Source:"],
+      notContains: [SHOW_EMAIL_CAPTURE_MARKER, "[Fuente:"],
     },
   },
   {
-    label: "Commercial intent (expect marker)",
+    label: "Out-of-context EN — SaaS pricing strategy",
+    category: "out-of-context",
+    lang: "en",
+    query: "What's the best pricing strategy for my SaaS?",
+    expect: {
+      equalsOneOf: [NO_INFO_EN],
+      notContains: [SHOW_EMAIL_CAPTURE_MARKER, "[Source:", "[Fuente:"],
+    },
+  },
+  {
+    label: "Out-of-context ES — best JS framework",
+    category: "out-of-context",
+    lang: "es",
+    query: "¿Cuál es el mejor framework de JavaScript en 2026?",
+    expect: {
+      equalsOneOf: [NO_INFO_ES],
+      notContains: [SHOW_EMAIL_CAPTURE_MARKER, "[Source:", "[Fuente:"],
+    },
+  },
+  {
+    label: "Commercial EN — hiring help with Supabase Auth",
+    category: "commercial",
+    lang: "en",
     query:
       "I need help implementing Supabase Auth in my Next.js app — can someone help?",
     expect: {
-      contains: [SHOW_EMAIL_CAPTURE_MARKER],
+      contains: [SHOW_EMAIL_CAPTURE_MARKER, "[Source:"],
+      notContains: ["I don't have that information in the documentation"],
+      matches: [/.{400,}/s],
+    },
+  },
+  {
+    label: "Commercial ES — Realtime + pedido de ayuda para implementar",
+    category: "commercial",
+    lang: "es",
+    query:
+      "¿Cómo uso Realtime en Supabase para mostrar actualizaciones en vivo en mi app? Necesito ayuda implementándolo.",
+    expect: {
+      contains: [SHOW_EMAIL_CAPTURE_MARKER, "[Fuente:"],
+      notContains: ["[Source:", "No tengo esa información en la documentación"],
+      matches: [/.{400,}/s],
+    },
+  },
+  {
+    label: "Ambiguous EN — Supabase vs Firebase",
+    category: "ambiguous",
+    lang: "en",
+    query: "Should I use Supabase or Firebase for my project?",
+    expect: {
+      notContains: [SHOW_EMAIL_CAPTURE_MARKER],
+      anyOf: [
+        { contains: ["[Source:"] },
+        { equalsOneOf: [NO_INFO_EN] },
+      ],
+    },
+  },
+  {
+    label: "Ambiguous ES — subir archivos a Storage",
+    category: "ambiguous",
+    lang: "es",
+    query:
+      "¿Cómo subo archivos a Supabase Storage desde una aplicación web?",
+    expect: {
+      notContains: [SHOW_EMAIL_CAPTURE_MARKER],
+      anyOf: [
+        { contains: ["[Fuente:"] },
+        { equalsOneOf: [NO_INFO_ES] },
+      ],
     },
   },
 ];
 
 type SseEvent = { event: string; data: string };
 
-async function* parseSse(stream: ReadableStream<Uint8Array>): AsyncGenerator<SseEvent> {
+async function* parseSse(
+  stream: ReadableStream<Uint8Array>
+): AsyncGenerator<SseEvent> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -93,9 +195,54 @@ async function* parseSse(stream: ReadableStream<Uint8Array>): AsyncGenerator<Sse
   }
 }
 
+function evalExpect(fullText: string, expect: Expect): { pass: boolean; notes: string[] } {
+  const notes: string[] = [];
+  let pass = true;
+  const trimmed = fullText.trim();
+
+  if (expect.contains) {
+    for (const needle of expect.contains) {
+      const ok = fullText.includes(needle);
+      notes.push(`${ok ? "✅" : "❌"} contains "${needle}"`);
+      if (!ok) pass = false;
+    }
+  }
+  if (expect.notContains) {
+    for (const needle of expect.notContains) {
+      const ok = !fullText.includes(needle);
+      notes.push(`${ok ? "✅" : "❌"} does NOT contain "${needle}"`);
+      if (!ok) pass = false;
+    }
+  }
+  if (expect.equalsOneOf) {
+    const ok = expect.equalsOneOf.includes(trimmed);
+    notes.push(`${ok ? "✅" : "❌"} response equals canonical sentence`);
+    if (!ok) pass = false;
+  }
+  if (expect.matches) {
+    for (const re of expect.matches) {
+      const ok = re.test(fullText);
+      notes.push(`${ok ? "✅" : "❌"} matches ${re}`);
+      if (!ok) pass = false;
+    }
+  }
+  if (expect.anyOf) {
+    const ok = expect.anyOf.some((sub) => {
+      if (sub.contains && !sub.contains.every((n) => fullText.includes(n))) return false;
+      if (sub.equalsOneOf && !sub.equalsOneOf.includes(trimmed)) return false;
+      return true;
+    });
+    notes.push(`${ok ? "✅" : "❌"} satisfies anyOf (${expect.anyOf.length} branches)`);
+    if (!ok) pass = false;
+  }
+  return { pass, notes };
+}
+
 async function runCase(c: TestCase, idx: number): Promise<boolean> {
   console.log("=".repeat(80));
-  console.log(`[${idx + 1}/${cases.length}] ${c.label}`);
+  console.log(
+    `[${idx + 1}/${cases.length}] ${c.label}  (${c.category}/${c.lang})`
+  );
   console.log(`Q: ${c.query}`);
   console.log("-".repeat(80));
 
@@ -109,8 +256,7 @@ async function runCase(c: TestCase, idx: number): Promise<boolean> {
 
   if (!res.ok) {
     console.log(`❌ HTTP ${res.status}`);
-    const text = await res.text();
-    console.log(text);
+    console.log(await res.text());
     return false;
   }
 
@@ -151,28 +297,19 @@ async function runCase(c: TestCase, idx: number): Promise<boolean> {
 
   if (Array.isArray(sources) && sources.length > 0) {
     console.log(`Sources (${sources.length}):`);
-    for (const s of sources as Array<{ title: string; url: string; similarity: number }>) {
+    for (const s of sources as Array<{
+      title: string;
+      url: string;
+      similarity: number;
+    }>) {
       console.log(`  [${s.similarity}] ${s.title} — ${s.url}`);
     }
   } else {
     console.log("Sources: (none)");
   }
 
-  // Assertions
-  let pass = true;
-  if (c.expect.contains) {
-    for (const needle of c.expect.contains) {
-      const ok = fullText.includes(needle);
-      console.log(`${ok ? "✅" : "❌"} contains "${needle}"`);
-      if (!ok) pass = false;
-    }
-  }
-  if (c.expect.equalsOneOf) {
-    const trimmed = fullText.trim();
-    const ok = c.expect.equalsOneOf.includes(trimmed);
-    console.log(`${ok ? "✅" : "❌"} response equals canonical no-info message`);
-    if (!ok) pass = false;
-  }
+  const { pass, notes } = evalExpect(fullText, c.expect);
+  for (const n of notes) console.log(n);
   console.log("");
   return pass;
 }
@@ -184,20 +321,31 @@ async function main(): Promise<void> {
     "[test-chat] make sure the dev server is running (npm run dev)\n"
   );
 
-  const results: boolean[] = [];
+  const results: Array<{ c: TestCase; ok: boolean }> = [];
   for (let i = 0; i < cases.length; i++) {
     try {
       const ok = await runCase(cases[i], i);
-      results.push(ok);
+      results.push({ c: cases[i], ok });
     } catch (err) {
       console.log(`❌ error: ${(err as Error).message}`);
-      results.push(false);
+      results.push({ c: cases[i], ok: false });
     }
   }
 
   console.log("=".repeat(80));
-  const passed = results.filter(Boolean).length;
-  console.log(`Results: ${passed}/${results.length} passed`);
+  const byCat = new Map<Category, { pass: number; total: number }>();
+  for (const { c, ok } of results) {
+    const cur = byCat.get(c.category) ?? { pass: 0, total: 0 };
+    cur.total += 1;
+    if (ok) cur.pass += 1;
+    byCat.set(c.category, cur);
+  }
+  console.log("Results by category:");
+  for (const [cat, { pass, total }] of byCat) {
+    console.log(`  ${cat}: ${pass}/${total}`);
+  }
+  const passed = results.filter((r) => r.ok).length;
+  console.log(`\nTOTAL: ${passed}/${results.length} passed`);
   if (passed < results.length) process.exit(1);
 }
 
